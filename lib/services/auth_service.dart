@@ -1,8 +1,104 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
+import 'package:deepsage/services/api_service.dart';
+import 'package:deepsage/services/storage_service.dart';
+import 'package:deepsage/utils/toast_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:logger/web.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+
+class AuthServices {
+  AuthServices._();
+
+  static const _onyxPassword = "T\$4mX!zP2q@6Ld#9vB";
+  static final instance = AuthServices._();
+
+  final _api =ApiService.instance;
+  final _db = StorageService.instance;
+  String? _twoFactorToken;
+
+
+  Future<ApiResponse<bool>?> signIn(String email, String password) async {
+    final response = await _api.post('/auth/sign-in', {'email': email, 'password': password}, expectsData: true, isCrypto: true);
+    if(!response.isSuccess) {
+      ToastUtils.showError(response.message ?? 'unexpected error');
+      return null;
+    }
+    final result = response.data;
+    if(result case {'isTwoFactorEnabled': final bool tFAEnabled}) {
+      if(tFAEnabled) {
+        Logger().i('Logging in with 2fa');
+        _twoFactorToken = result['twoFactorResponse']['accessToken'];
+        await _db.saveToken(_twoFactorToken!);
+         return ApiResponse.success(true);
+        // return {
+        //   'requiresTwoFactor': true,
+        //   'twoFactorToken': result['twoFactorResponse']['accessToken'],
+        // };
+      } else {
+        await _db.saveAuthTokens(accessToken: result['session']['accessToken'], refreshToken: result['session']['refreshToken']);
+        final loginRes = await _signInToOnyxSystem(email, _onyxPassword);
+        if(loginRes) return ApiResponse.success(false);
+        return null;
+          // return {'requiresTwoFactor': false, 'user': result['session']['user']};
+        // return null;
+      }
+    }
+    ToastUtils.showError('Something went wrong');
+
+    return null;
+  }
+
+  Future<bool> _signInToOnyxSystem(String email, String password) async {
+    Logger().i('Signing in to Onyx');
+    final requestBody = 'username=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}';
+    try {
+      // Try to register first (it's fine if this fails)
+      final regResult = await _api.post('/auth/register', {'email': email, 'password': password},isCrypto: false,);
+      if(!regResult.isSuccess) Logger().i('Registration failed, user already exists');
+      final loginResult = await _api.post('/auth/login',requestBody, isCrypto: false);
+      if(!loginResult.isSuccess) {
+        ToastUtils.showError(regResult.message ?? 'unexpected error');
+      }
+      return loginResult.isSuccess;
+      // We could store Onyx-specific tokens here if needed
+    } catch (e, s) {
+      Logger().e('Onyx system login error: $e', stackTrace: s);
+      ToastUtils.showError('Something went wrong');
+      return false;
+    }
+  }
+
+
+  Future<bool> verifyTwoFactor(String code, String method) async {
+    final requestBody = {'code': code, 'method': method};
+    debugPrint('Request body: $requestBody');
+
+    final response = await _api.post('/auth/sign-in/verify-2fa', requestBody, expectsData: true);
+
+    if(!response.isSuccess) {
+      ToastUtils.showError('Verification failed: ${response.message}');
+      return false;
+    }
+    final result = response.data;
+    await _db.saveAuthTokens(accessToken: result['session']['accessToken'], refreshToken: result['session']['refreshToken']);
+
+    final user = result['session']['user'];
+
+    final loginRes = await _signInToOnyxSystem(user['email'], _onyxPassword);
+    return loginRes;
+  }
+
+  Future<void> logout() async {
+    await _db.clearAuth();
+    debugPrint('Logged out, tokens cleared');
+  }
+
+
+}
+
 
 class AuthService {
   static const _cryptoApi = 'https://api-stg.3lgn.com';
@@ -158,7 +254,7 @@ class AuthService {
       body: requestBody,
     );
 
-    debugPrint('Response [${response.statusCode}]: ${response.body}');
+    debugPrint('Response login [${response.statusCode}]: ${response.body}');
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Onyx login failed: ${response.body}');

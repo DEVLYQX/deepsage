@@ -85,39 +85,62 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final result = await _authService.signIn(email, password);
+      // final result = await _authService.signIn(email, password);
+      final result = await AuthServices.instance.signIn(email, password);
 
-      if (result['requiresTwoFactor'] == true) {
-        setState(() {
-          _twoFactorToken = result['twoFactorToken'];
-          _email = _emailController.text;
-        });
-        // Show 2FA input dialog
-        _show2FADialog();
-      } else {
-        // Navigate to chat screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatScreen(threadId: 'default-thread-id'),
-          ),
-        );
+      if(result == null) {
+        setState(() => _isLoading = false);
+        return;
       }
+      if(result.isSuccess) {
+        final has2FA = result.data!;
+        if(has2FA) {
+          setState(() {
+            _twoFactorToken = 'meep';
+            _email = _emailController.text;
+          });
+          // Show 2FA input dialog
+          _show2FADialog();
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatScreen(threadId: 'default-thread-id'),
+            ),
+          );
+        }
+      }
+      // if (result['requiresTwoFactor'] == true) {
+      //   setState(() {
+      //     _twoFactorToken = result['twoFactorToken'];
+      //     _email = _emailController.text;
+      //   });
+      //   // Show 2FA input dialog
+      //   _show2FADialog();
+      // } else {
+      //   // Navigate to chat screen
+      //   Navigator.pushReplacement(
+      //     context,
+      //     MaterialPageRoute(
+      //       builder: (context) => ChatScreen(threadId: 'default-thread-id'),
+      //     ),
+      //   );
+      // }
     } catch (e) {
       String errorMessage = 'Login failed';
 
       // Parse error message for better user experience
-      if (e.toString().contains('Invalid email')) {
-        errorMessage = 'Please enter a valid email address';
-      } else if (e.toString().contains('email should not be empty')) {
-        errorMessage = 'Email field cannot be empty';
-      } else if (e.toString().contains('password')) {
-        errorMessage = 'Invalid password';
-      } else if (e.toString().contains('Validation failed')) {
-        errorMessage = 'Please check your email and password';
-      } else {
-        errorMessage = e.toString().replaceAll('Exception: ', '');
-      }
+      // if (e.toString().contains('Invalid email')) {
+      //   errorMessage = 'Please enter a valid email address';
+      // } else if (e.toString().contains('email should not be empty')) {
+      //   errorMessage = 'Email field cannot be empty';
+      // } else if (e.toString().contains('password')) {
+      //   errorMessage = 'Invalid password';
+      // } else if (e.toString().contains('Validation failed')) {
+      //   errorMessage = 'Please check your email and password';
+      // } else {
+      //   errorMessage = e.toString().replaceAll('Exception: ', '');
+      // }
 
       ToastUtils.showError(errorMessage);
     } finally {
@@ -308,16 +331,25 @@ class _LoginScreenState extends State<LoginScreen>
                                   _selectedMethod,
                                 );
 
+                                final success = await AuthServices.instance.verifyTwoFactor(
+                                  _codeController.text,
+                                  _selectedMethod,
+                                );
                                 Navigator.pop(context);
+                                if(success) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ChatScreen(threadId: 'default-thread-id'),
+                                    ),
+                                  );
+                                } else {
+
+                                }
+
                                 
                                 // Navigate to chat screen
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        ChatScreen(threadId: 'default-thread-id'),
-                                  ),
-                                );
                               } catch (e) {
                                 Navigator.pop(context);
                                 ToastUtils.showError('Verification failed: $e');
