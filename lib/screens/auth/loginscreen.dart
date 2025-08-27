@@ -26,9 +26,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter email and password')),
+        SnackBar(
+          content: Text('Please enter both email and password'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Basic email validation
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a valid email address'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -38,10 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await _authService.signIn(
-        _emailController.text,
-        _passwordController.text,
-      );
+      final result = await _authService.signIn(email, password);
 
       if (result['requiresTwoFactor'] == true) {
         setState(() {
@@ -60,9 +74,24 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+      String errorMessage = 'Login failed';
+
+      // Parse error message for better user experience
+      if (e.toString().contains('Invalid email')) {
+        errorMessage = 'Please enter a valid email address';
+      } else if (e.toString().contains('email should not be empty')) {
+        errorMessage = 'Email field cannot be empty';
+      } else if (e.toString().contains('password')) {
+        errorMessage = 'Invalid password';
+      } else if (e.toString().contains('Validation failed')) {
+        errorMessage = 'Please check your email and password';
+      } else {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+      );
     } finally {
       setState(() {
         _isLoading = false;
