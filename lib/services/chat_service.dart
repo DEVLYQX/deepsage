@@ -2,6 +2,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:deepsage/services/api_service.dart';
+import 'package:deepsage/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/status.dart' as status;
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -168,12 +170,20 @@ class ChatService {
 
   // Get chat history
   Future<List<Message>> getChatHistory(String threadId) async {
-    final token = await _authService.getAccessToken();
+    final result = ApiService.instance.post('/chat/create-chat-session', {
+      "persona_id": 2,
+      "description": "description"
+    }, isChat: true);
+    final token = await StorageService.instance.accessToken;
     if (token == null) {
       throw Exception('Not authenticated');
     }
 
     try {
+      final result = ApiService.instance.post('/chat/create-chat-session', {
+        "persona_id": 2,
+        "description": "description"
+      }, isChat: true);
       final response = await http.get(
         Uri.parse('$apiBaseUrl/chat/history/$threadId'),
         headers: {'Authorization': 'Bearer $token'},

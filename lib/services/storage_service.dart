@@ -10,11 +10,7 @@ class StorageService {
 
   Future<String?> get accessToken async => _secureStorage.read(key: 'accessToken');
   Future<String?> get refreshToken async => _secureStorage.read(key: 'refreshToken');
-  // Future<User?> get user async {
-  //   final userStr = await _secureStorage.read(key: 'user');
-  //   if (userStr == null) return null;
-  //   return parseJson(() => User.fromJson(jsonDecode(userStr) as Map<String, dynamic>));
-  // }
+  Future<String?> get cookie async => _secureStorage.read(key: 'cookieToken');
 
   Future<Map<String, dynamic>?> get userMap async {
     final userStr = await _secureStorage.read(key: 'user');
@@ -27,6 +23,7 @@ class StorageService {
     await _secureStorage.delete(key: 'accessToken');
     await _secureStorage.delete(key: 'refreshToken');
     await _secureStorage.delete(key: 'user');
+    await _secureStorage.delete(key: 'cookieToken');
   }
 
   Future<void> init() async {
@@ -43,6 +40,10 @@ class StorageService {
 
   Future<void> saveToken(String token) async {
     await _secureStorage.write(key: 'accessToken', value: token);
+  }
+
+  Future<void> saveCookieToken(String token) async {
+    await _secureStorage.write(key: 'cookieToken', value: token);
   }
 
 

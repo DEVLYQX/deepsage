@@ -11,7 +11,8 @@ class ApiService {
   static final instance = ApiService._();
   final _db = StorageService.instance;
   final String cryptoApiUrl = 'https://api-stg.3lgn.com';
-  final String onyxApiUrl = 'https://stg.deepsage.io/api';
+  // final String onyxApiUrl = 'https://stg.deepsage.io/api';
+  final String onyxApiUrl = 'https://cloud.onyx.app/api';
 
 
   Future<ApiResponse<dynamic>> _call(
@@ -32,8 +33,9 @@ class ApiService {
   }
 
 
-  Future<Dio> _dio(bool isCrypto,) async {
+  Future<Dio> _dio(bool isCrypto, {bool isChat = false}) async {
     final accessToken = await _db.accessToken;
+    final cookie = await _db.cookie;
 
     final dio = Dio(
       BaseOptions(
@@ -41,14 +43,25 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
           if(isCrypto) 'x-cypress-env': 'true', // To bypass CAPTCHA as mentioned
-          if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+          if (accessToken != null && isChat == false) 'Authorization': 'Bearer $accessToken',
+          if (cookie != null && isChat == true) 'Cookie': cookie,
         },
       ),
     );
     dio.interceptors.add(
       InterceptorsWrapper(
+        onResponse: (response, handler) async {
+          if(response.requestOptions.uri.path.contains('/api/auth/login')) {
+            final cookieHeader = response.headers['set-cookie'];
+            if(cookieHeader!= null) {
+              final cookie = cookieHeader.first.split(';').first;
+              Logger().i('Cookie:$cookie');
+              await _db.saveCookieToken(cookie);
+            }
+          }
+          handler.next(response);
+        },
         onRequest: (request, handler) {
-          Logger().i('Uri Path ${request.uri.path}  ${request.path}');
           if(request.uri.path.contains('/api/auth/login')) {
             request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
           }
@@ -56,7 +69,7 @@ class ApiService {
         }
       )
     );
-    if (!kReleaseMode) dio.interceptors.add(PrettyDioLogger(requestHeader: true, requestBody: true));
+    if (!kReleaseMode) dio.interceptors.add(PrettyDioLogger(requestHeader: true, requestBody: true, responseHeader: true));
 
     return dio;
   }
@@ -96,12 +109,12 @@ class ApiService {
 
 
 
-  Future<ApiResponse> post(String path, Object body, {bool expectsData = false, bool isCrypto = false, bool encoded = false}) async {
-    return _call((await _dio(isCrypto)).post(path, data: body), expectsData: expectsData);
+  Future<ApiResponse> post(String path, Object body, {bool expectsData = false, bool isCrypto = false, bool encoded = false, bool isChat = false}) async {
+    return _call((await _dio(isCrypto, isChat: isChat)).post(path, data: body), expectsData: expectsData);
   }
 
-  Future<ApiResponse> get(String path,  [Map<String, dynamic>? queryParams, bool isCrypto = false]) async {
-    return _call((await _dio(isCrypto)).get(path, queryParameters: queryParams),
+  Future<ApiResponse> get(String path,  [Map<String, dynamic>? queryParams, bool isCrypto = false, bool isChat = false]) async {
+    return _call((await _dio(isCrypto, isChat: isChat)).get(path, queryParameters: queryParams),
         expectsData: true);
   }
 
