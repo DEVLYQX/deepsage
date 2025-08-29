@@ -1,6 +1,5 @@
 import 'package:deepsage/providers/theme_provider.dart';
 import 'package:deepsage/screens/auth/loginscreen.dart';
-import 'package:deepsage/screens/auth/loginscreen.dart';
 import 'package:deepsage/screens/chat_screen.dart';
 import 'package:deepsage/services/auth_service.dart';
 import 'package:deepsage/theme/app_theme.dart';
