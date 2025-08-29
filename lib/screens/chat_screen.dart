@@ -378,13 +378,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: isDark
-                    ? [const Color(0xFF0F172A), const Color(0xCC1E293B)]
-                    : [const Color(0xFFF8FAFC), const Color(0x4DE2E8F0)],
-              ),
+              color: isDark
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFFFAFAFA),
             ),
             child: _messages.isEmpty
                 ? _buildEmptyState(theme)
@@ -458,19 +454,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             maxWidth: MediaQuery.of(context).size.width * 0.75,
           ),
           decoration: BoxDecoration(
-            gradient: isUser
-                ? LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      theme.colorScheme.secondary,
-                    ],
-                  )
-                : null,
             color: isUser
-                ? null
+                ? theme.colorScheme.primary
                 : isDark
                 ? const Color(0xFF374151)
-                : Colors.white,
+                : const Color(0xFFF3F4F6),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(20),
               topRight: const Radius.circular(20),
