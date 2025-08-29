@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:deepsage/services/storage_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -11,8 +13,8 @@ class ApiService {
   static final instance = ApiService._();
   final _db = StorageService.instance;
   final String cryptoApiUrl = 'https://api-stg.3lgn.com';
-  // final String onyxApiUrl = 'https://stg.deepsage.io/api';
-  final String onyxApiUrl = 'https://cloud.onyx.app/api';
+  final String onyxApiUrl = 'https://stg.deepsage.io/api';
+  // final String onyxApiUrl = 'https://cloud.onyx.app/api';
 
 
   Future<ApiResponse<dynamic>> _call(
@@ -74,6 +76,73 @@ class ApiService {
     return dio;
   }
 
+  Stream<T> handleSSEStream<T>(
+      String path, {
+        Map<String, dynamic>? body,
+        // Map<String, dynamic>? headers,
+        // CancelToken? cancelToken,
+      }) async* {
+    final cookie = await _db.cookie;
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: onyxApiUrl,
+        responseType: ResponseType.stream,
+        headers: {
+          'Content-Type': 'application/json',
+          "Accept": "text/event-stream",
+          if (cookie != null) 'Cookie': cookie,
+        },
+      )
+    );
+    if (!kReleaseMode) dio.interceptors.add(PrettyDioLogger(requestHeader: true, requestBody: true, responseHeader: true));
+
+    final response = await dio.post<ResponseBody>(path, data: body);
+
+    final stream = response.data!.stream.cast<List<int>>().transform(utf8.decoder);
+
+    String buffer = "";
+
+    await for (final chunk in stream) {
+      buffer += chunk;
+      final lines = buffer.split("\n");
+      buffer = lines.removeLast(); // keep unfinished line
+      Logger().i('chunk: $chunk');
+      for (final line in lines) {
+        Logger().i('line $line');
+        if (line.trim().isEmpty) continue;
+
+        try {
+          final data = jsonDecode(line) as T;
+          yield data;
+        } catch (e) {
+          Logger().i('attempting to extract inline json');
+          // attempt to extract inline JSON objects
+          final matches = RegExp(r'\{[^{}]*\}').allMatches(line);
+          for (final match in matches) {
+            try {
+              final obj = jsonDecode(match.group(0)!) as T;
+              yield obj;
+            } catch (e, s) {
+              Logger().e(e, stackTrace: s);
+              // ignore malformed chunk
+            }
+          }
+        }
+      }
+    }
+
+    // Process remaining buffer at end
+    if (buffer.trim().isNotEmpty) {
+      try {
+        final data = jsonDecode(buffer) as T;
+        yield data;
+      } catch (e, s) {
+        Logger().e(e, stackTrace: s);
+        // leftover junk, ignore
+      }
+    }
+  }
+
   ApiResponse<dynamic> handleDioError(DioException error) {
     if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout ||
@@ -113,12 +182,14 @@ class ApiService {
     return _call((await _dio(isCrypto, isChat: isChat)).post(path, data: body), expectsData: expectsData);
   }
 
-  Future<ApiResponse> get(String path,  [Map<String, dynamic>? queryParams, bool isCrypto = false, bool isChat = false]) async {
+  Future<ApiResponse> get(String path,  {Map<String, dynamic>? queryParams, bool isCrypto = false, bool isChat = false}) async {
     return _call((await _dio(isCrypto, isChat: isChat)).get(path, queryParameters: queryParams),
         expectsData: true);
   }
 
 }
+
+
 
 class ApiResponse<T> {
   ApiResponse({this.data, this.message, this.code});
