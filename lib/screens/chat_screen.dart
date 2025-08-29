@@ -2,6 +2,7 @@ import 'package:deepsage/models/chat_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+
 import '../services/chat_service.dart';
 import '../utils/toast_utils.dart';
 
@@ -67,11 +68,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       _chatService.chatMessagesStream.listen((msgs) {
         setState(() => _messages = msgs);
         _scrollToBottom();
-      }, onError: (error) => ToastUtils.showError('Error: $error')
-      );
+      }, onError: (error) => ToastUtils.showError('Error: $error'));
       // Get chat history
-     await _chatService.getChatHistory(widget.threadId);
-     setState(() => _isLoading = false);
+      await _chatService.getChatHistory(widget.threadId);
+      setState(() => _isLoading = false);
     } catch (e) {
       ToastUtils.showError('Failed to load chat: $e');
     } finally {
@@ -82,11 +82,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: Duration(milliseconds: 400),
-            curve: Curves.easeOut,
-          );
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -105,14 +105,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _messageFocusNode.requestFocus();
 
     try {
-      await _chatService.sendMessage(text, onDone: () {
-        _aiTyping = false;
-        setState(() => _isSending = false);
-      }, onError: () {
-        _aiTyping = false;
-        setState(() => _isSending = false);
-        ToastUtils.showError('Something went wrong');
-      });
+      await _chatService.sendMessage(
+        text,
+        onDone: () {
+          _aiTyping = false;
+          setState(() => _isSending = false);
+        },
+        onError: () {
+          _aiTyping = false;
+          setState(() => _isSending = false);
+          ToastUtils.showError('Something went wrong');
+        },
+      );
     } catch (e) {
       ToastUtils.showError('Failed to send message: $e');
     } finally {
@@ -138,21 +142,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       foregroundColor: theme.colorScheme.onSurface,
       title: Row(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.secondary,
-                ],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.smart_toy, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
+          Image.asset('assets/splash_logo.png', height: 35),
+          const SizedBox(width: 5),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,25 +392,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     controller: _scrollController,
                     slivers: [
                       SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final message = _messages[index];
-                              return _buildMessageBubble(message);
-                            },
-                          childCount: _messages.length
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final message = _messages[index];
+                          return _buildMessageBubble(message);
+                        }, childCount: _messages.length),
                       ),
-                      if(_aiTyping) SliverToBoxAdapter(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            // color: Colors.black,
-                            padding: EdgeInsets.only(left: 12),
-                            height: 40,
+                      if (_aiTyping)
+                        SliverToBoxAdapter(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              // color: Colors.black,
+                              padding: EdgeInsets.only(left: 12),
+                              height: 40,
                               alignment: Alignment.centerLeft,
-                              child: TypingIndicator()),
+                              child: TypingIndicator(),
+                            ),
+                          ),
                         ),
-                      )
                     ],
                   ),
           ),
@@ -519,7 +509,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(timeFormatter.format(message.timeSent.toLocal()),
+                    Text(
+                      timeFormatter.format(message.timeSent.toLocal()),
                       style: TextStyle(
                         fontSize: 12,
                         color: isUser
@@ -572,7 +563,8 @@ class TypingIndicator extends StatefulWidget {
   State<TypingIndicator> createState() => _TypingIndicatorState();
 }
 
-class _TypingIndicatorState extends State<TypingIndicator> with TickerProviderStateMixin {
+class _TypingIndicatorState extends State<TypingIndicator>
+    with TickerProviderStateMixin {
   // Animation controllers for each of the three dots
   late final AnimationController _controller1;
   late final AnimationController _controller2;
@@ -610,17 +602,30 @@ class _TypingIndicatorState extends State<TypingIndicator> with TickerProviderSt
     // Create the animations and apply a staggered delay using Intervals
     // An Interval creates a sub-section of the overall animation.
     // This makes the dots "take turns" bouncing.
-    _animation1 = tween.animate(CurvedAnimation(parent: _controller1, curve: const Interval(0.0, 1.0, curve: Curves.easeOut)));
+    _animation1 = tween.animate(
+      CurvedAnimation(
+        parent: _controller1,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOut),
+      ),
+    );
     _animation2 = tween.animate(
       CurvedAnimation(
         parent: _controller2,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeOut), // Start after a delay
+        curve: const Interval(
+          0.2,
+          1.0,
+          curve: Curves.easeOut,
+        ), // Start after a delay
       ),
     );
     _animation3 = tween.animate(
       CurvedAnimation(
         parent: _controller3,
-        curve: const Interval(0.4, 1.0, curve: Curves.easeOut), // Start after a longer delay
+        curve: const Interval(
+          0.4,
+          1.0,
+          curve: Curves.easeOut,
+        ), // Start after a longer delay
       ),
     );
   }
