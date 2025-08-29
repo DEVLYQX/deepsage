@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/auth_service.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/auth_service.dart';
 import '../../utils/toast_utils.dart';
 import '../chat_screen.dart';
 
@@ -25,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen>
   bool _obscurePassword = true;
   String? _twoFactorToken;
   String? _email;
-  
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -43,15 +43,13 @@ class _LoginScreenState extends State<LoginScreen>
         curve: const Interval(0.0, 1.0, curve: Curves.easeInOut),
       ),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0.0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0.0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: const Interval(0.2, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
     _animationController.forward();
   }
 
@@ -88,13 +86,13 @@ class _LoginScreenState extends State<LoginScreen>
       // final result = await _authService.signIn(email, password);
       final result = await AuthServices.instance.signIn(email, password);
 
-      if(result == null) {
+      if (result == null) {
         setState(() => _isLoading = false);
         return;
       }
-      if(result.isSuccess) {
+      if (result.isSuccess) {
         final has2FA = result.data!;
-        if(has2FA) {
+        if (has2FA) {
           setState(() {
             _twoFactorToken = 'meep';
             _email = _emailController.text;
@@ -110,37 +108,8 @@ class _LoginScreenState extends State<LoginScreen>
           );
         }
       }
-      // if (result['requiresTwoFactor'] == true) {
-      //   setState(() {
-      //     _twoFactorToken = result['twoFactorToken'];
-      //     _email = _emailController.text;
-      //   });
-      //   // Show 2FA input dialog
-      //   _show2FADialog();
-      // } else {
-      //   // Navigate to chat screen
-      //   Navigator.pushReplacement(
-      //     context,
-      //     MaterialPageRoute(
-      //       builder: (context) => ChatScreen(threadId: 'default-thread-id'),
-      //     ),
-      //   );
-      // }
     } catch (e) {
       String errorMessage = 'Login failed';
-
-      // Parse error message for better user experience
-      // if (e.toString().contains('Invalid email')) {
-      //   errorMessage = 'Please enter a valid email address';
-      // } else if (e.toString().contains('email should not be empty')) {
-      //   errorMessage = 'Email field cannot be empty';
-      // } else if (e.toString().contains('password')) {
-      //   errorMessage = 'Invalid password';
-      // } else if (e.toString().contains('Validation failed')) {
-      //   errorMessage = 'Please check your email and password';
-      // } else {
-      //   errorMessage = e.toString().replaceAll('Exception: ', '');
-      // }
 
       ToastUtils.showError(errorMessage);
     } finally {
@@ -151,9 +120,9 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _show2FADialog() {
-    final _codeController = TextEditingController();
-    String _selectedMethod = 'authenticator';
-    bool _isVerifying = false;
+    final codeController = TextEditingController();
+    String selectedMethod = 'authenticator';
+    bool isVerifying = false;
 
     showDialog(
       context: context,
@@ -178,7 +147,9 @@ class _LoginScreenState extends State<LoginScreen>
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -194,15 +165,17 @@ class _LoginScreenState extends State<LoginScreen>
                             children: [
                               Text(
                                 'Two-Factor Authentication',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                               Text(
                                 'Enter your verification code',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.7),
+                                    ),
                               ),
                             ],
                           ),
@@ -210,39 +183,44 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Verification code field
                     TextFormField(
-                      controller: _codeController,
+                      controller: codeController,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 4,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 4,
+                          ),
                       decoration: InputDecoration(
                         labelText: 'Verification Code',
                         hintText: '000000',
                         prefixIcon: Icon(
                           Icons.pin,
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.7),
                         ),
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     // Method selection
                     Container(
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outline.withOpacity(0.3),
                         ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: DropdownButton<String>(
-                        value: _selectedMethod,
+                        value: selectedMethod,
                         isExpanded: true,
                         underline: const SizedBox(),
                         icon: Icon(
@@ -252,7 +230,7 @@ class _LoginScreenState extends State<LoginScreen>
                         onChanged: (String? newValue) {
                           if (newValue != null) {
                             setDialogState(() {
-                              _selectedMethod = newValue;
+                              selectedMethod = newValue;
                             });
                           }
                         },
@@ -291,18 +269,20 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
                     // Action buttons
                     Row(
                       children: [
                         Expanded(
                           child: TextButton(
-                            onPressed: _isVerifying ? null : () {
-                              Navigator.pop(context);
-                              setState(() {
-                                _isLoading = false;
-                              });
-                            },
+                            onPressed: isVerifying
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    setState(() {
+                                      _isLoading = false;
+                                    });
+                                  },
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
@@ -313,55 +293,58 @@ class _LoginScreenState extends State<LoginScreen>
                         Expanded(
                           flex: 2,
                           child: ElevatedButton(
-                            onPressed: _isVerifying || _codeController.text.isEmpty
+                            onPressed:
+                                isVerifying || codeController.text.isEmpty
                                 ? null
                                 : () async {
-                              if (_codeController.text.isEmpty) {
-                                return;
-                              }
+                                    if (codeController.text.isEmpty) {
+                                      return;
+                                    }
 
-                              setDialogState(() {
-                                _isVerifying = true;
-                              });
+                                    setDialogState(() {
+                                      isVerifying = true;
+                                    });
 
-                              try {
-                                await _authService.verifyTwoFactor(
-                                  _twoFactorToken!,
-                                  _codeController.text,
-                                  _selectedMethod,
-                                );
+                                    try {
+                                      await _authService.verifyTwoFactor(
+                                        _twoFactorToken!,
+                                        codeController.text,
+                                        selectedMethod,
+                                      );
 
-                                final success = await AuthServices.instance.verifyTwoFactor(
-                                  _codeController.text,
-                                  _selectedMethod,
-                                );
-                                Navigator.pop(context);
-                                if(success) {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          ChatScreen(threadId: 'default-thread-id'),
-                                    ),
-                                  );
-                                } else {
+                                      final success = await AuthServices
+                                          .instance
+                                          .verifyTwoFactor(
+                                            codeController.text,
+                                            selectedMethod,
+                                          );
+                                      Navigator.pop(context);
+                                      if (success) {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ChatScreen(
+                                              threadId: 'default-thread-id',
+                                            ),
+                                          ),
+                                        );
+                                      } else {}
 
-                                }
-
-                                
-                                // Navigate to chat screen
-                              } catch (e) {
-                                Navigator.pop(context);
-                                ToastUtils.showError('Verification failed: $e');
-                                setState(() {
-                                  _isLoading = false;
-                                });
-                              }
-                            },
+                                      // Navigate to chat screen
+                                    } catch (e) {
+                                      Navigator.pop(context);
+                                      ToastUtils.showError(
+                                        'Verification failed: $e',
+                                      );
+                                      setState(() {
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                            child: _isVerifying
+                            child: isVerifying
                                 ? SizedBox(
                                     height: 16,
                                     width: 16,
@@ -397,7 +380,7 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildGradientBackground() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -448,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildLoginCard() {
     final theme = Theme.of(context);
-    
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -484,23 +467,7 @@ class _LoginScreenState extends State<LoginScreen>
   Widget _buildHeader() {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Theme.of(context).colorScheme.primary,
-                Theme.of(context).colorScheme.secondary,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(
-            Icons.chat_bubble_rounded,
-            size: 32,
-            color: Colors.white,
-          ),
-        ),
+        Image.asset('assets/splash_logo.png', height: 80),
         const SizedBox(height: 16),
         Text(
           'DeepSage',
@@ -607,10 +574,7 @@ class _LoginScreenState extends State<LoginScreen>
                 children: [
                   const Text(
                     'Sign In',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 8),
                   const Icon(Icons.arrow_forward, size: 16),
@@ -636,7 +600,8 @@ class _LoginScreenState extends State<LoginScreen>
                 physics: const ClampingScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height -
+                    minHeight:
+                        MediaQuery.of(context).size.height -
                         MediaQuery.of(context).padding.top -
                         MediaQuery.of(context).padding.bottom,
                   ),
