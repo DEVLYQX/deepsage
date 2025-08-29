@@ -7,9 +7,8 @@ import '../services/chat_service.dart';
 import '../utils/toast_utils.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String threadId;
 
-  const ChatScreen({super.key, required this.threadId});
+  const ChatScreen({super.key});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -70,7 +69,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         _scrollToBottom();
       }, onError: (error) => ToastUtils.showError('Error: $error'));
       // Get chat history
-      await _chatService.getChatHistory(widget.threadId);
+      await _chatService.getChatHistory();
       setState(() => _isLoading = false);
     } catch (e) {
       ToastUtils.showError('Failed to load chat: $e');

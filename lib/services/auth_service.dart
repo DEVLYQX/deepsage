@@ -19,6 +19,13 @@ class AuthServices {
   final _db = StorageService.instance;
   String? _twoFactorToken;
 
+  Future<bool> get isSignedIn async {
+    final token = await _db.accessToken;
+    final cookie = await _db.cookie;
+
+    return token != null && cookie != null;
+
+  }
 
   Future<ApiResponse<bool>?> signIn(String email, String password) async {
     final response = await _api.post('/auth/sign-in', {'email': email, 'password': password}, expectsData: true, isCrypto: true);

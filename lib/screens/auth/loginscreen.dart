@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => ChatScreen(threadId: 'default-thread-id'),
+              builder: (context) => ChatScreen(),
             ),
           );
         }
@@ -323,9 +323,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         Navigator.pushReplacement(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => ChatScreen(
-                                              threadId: 'default-thread-id',
-                                            ),
+                                            builder: (context) => ChatScreen(),
                                           ),
                                         );
                                       } else {}

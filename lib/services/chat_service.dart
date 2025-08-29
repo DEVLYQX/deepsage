@@ -166,32 +166,41 @@ class ChatService {
   }
 
   // Get chat history
-  Future<void> getChatHistory(String threadId) async {
-    final result = await ApiService.instance.post('/chat/create-chat-session', {
-      "persona_id": 2,
-      "description": "description"
-    }, isChat: true);
+  Future<void> getChatHistory() async {
+    final id = await StorageService.instance.sessionId;
+    if(id == null) {
+      Logger().i('Creating new session');
+      final result = await ApiService.instance.post('/chat/create-chat-session', {
+        "persona_id": 2,
+        "description": "description"
+      }, isChat: true);
 
-    if(result.isSuccess) {
-      chatId = result.data['chat_session_id'];
-      Logger().i('CHAT ID: $chatId');
+      if(result.isSuccess) {
+        chatId = result.data['chat_session_id'];
+        Logger().i('CHAT ID: $chatId');
+        StorageService.instance.saveLastSessionId(chatId);
+      }
+    } else {
+      Logger().i('Getting chats from last session');
+      final res = await _api.get('/chat/get-chat-session/$id', isChat: true);
+      if(res.isSuccess) {
+        chatId = id;
+        final chat = ChatSession.fromJson(res.data);
+        final messages = chat.messages;
+        messages.sort((a, b) {
+          final dateA = a.timeSent;
+          final dateB = b.timeSent;
+          return dateA.compareTo(dateB);
+        });
+        chatMessages.addAll(messages);
+        _chatMessagesController.add(List.unmodifiable(chatMessages));
+        Logger().i(chat.toString());
+      }
     }
 
+
     // await _api.get('/chat/get-chat-session/${'dc8d8dac-4f38-46cb-9ffc-baa3bed7a24d'}', isChat: true);
-    // final res = await _api.get('/chat/get-chat-session/${'fb446bb9-8006-44a4-a627-ca4d0663a62c'}', isChat: true);
-    // if(res.isSuccess) {
-    //   chatId = 'fb446bb9-8006-44a4-a627-ca4d0663a62c';
-    //   final chat = ChatSession.fromJson(res.data);
-    //   final messages = chat.messages;
-    //   messages.sort((a, b) {
-    //     final dateA = a.timeSent;
-    //     final dateB = b.timeSent;
-    //     return dateA.compareTo(dateB);
-    //   });
-    //   chatMessages.addAll(messages);
-    //   _chatMessagesController.add(List.unmodifiable(chatMessages));
-    //   Logger().i(chat.toString());
-    // }
+
   }
 
 
