@@ -1,28 +1,31 @@
-// lib/screens/chat_screen.dart
+import 'package:deepsage/models/chat_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import 'package:intl/intl.dart';
 import '../services/chat_service.dart';
 import '../utils/toast_utils.dart';
 
 class ChatScreen extends StatefulWidget {
   final String threadId;
 
-  const ChatScreen({Key? key, required this.threadId}) : super(key: key);
+  const ChatScreen({super.key, required this.threadId});
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
-  final ChatService _chatService = ChatService();
-  List<Message> _messages = [];
+  final ChatService _chatService = ChatService.instance;
+  List<ChatMessage> _messages = [];
   bool _isLoading = true;
   bool _isSending = false;
   bool _isTextEmpty = true;
+  bool _aiTyping = false;
+
+  final timeFormatter = DateFormat.Hm();
 
   late AnimationController _sendButtonAnimationController;
   late Animation<double> _sendButtonScaleAnimation;
@@ -48,9 +51,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _messageController.addListener(() {
       final isEmpty = _messageController.text.trim().isEmpty;
       if (isEmpty != _isTextEmpty) {
-        setState(() {
-          _isTextEmpty = isEmpty;
-        });
+        setState(() => _isTextEmpty = isEmpty);
         if (!isEmpty) {
           _sendButtonAnimationController.forward();
         } else {
@@ -62,89 +63,66 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Future<void> _initChat() async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Get chat history
-      final history = await _chatService.getChatHistory(widget.threadId);
-      setState(() {
-        _messages = history;
-      });
-
-      // Connect to chat stream
-      await _chatService.connectToChat(widget.threadId);
-
-      // Listen for new messages
-      _chatService.messagesStream.listen(
-        (message) {
-          setState(() {
-            // Update existing message or add new one
-            final index = _messages.indexWhere((m) => m.id == message.id);
-            if (index >= 0) {
-              _messages[index] = message;
-            } else {
-              _messages.add(message);
-            }
-          });
-
-          // Scroll to bottom
-          _scrollToBottom();
-        },
-        onError: (error) {
-          ToastUtils.showError('Error: $error');
-        },
+      setState(() => _isLoading = true);
+      _chatService.chatMessagesStream.listen((msgs) {
+        setState(() => _messages = msgs);
+        _scrollToBottom();
+      }, onError: (error) => ToastUtils.showError('Error: $error')
       );
+      // Get chat history
+     await _chatService.getChatHistory(widget.threadId);
+     setState(() => _isLoading = false);
     } catch (e) {
       ToastUtils.showError('Failed to load chat: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      Future.delayed(Duration(milliseconds: 100), () {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+          );
+      }
+    });
   }
 
   void _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
+    if (text.isEmpty || _isSending || _aiTyping) return;
 
     // Add haptic feedback
     HapticFeedback.lightImpact();
-
-    setState(() {
-      _isSending = true;
-    });
+    _isSending = true;
+    _aiTyping = true;
+    setState(() {});
 
     _messageController.clear();
     _messageFocusNode.requestFocus();
 
     try {
-      await _chatService.sendMessage(widget.threadId, text);
+      await _chatService.sendMessage(text, onDone: () {
+        _aiTyping = false;
+        setState(() => _isSending = false);
+      }, onError: () {
+        _aiTyping = false;
+        setState(() => _isSending = false);
+        ToastUtils.showError('Something went wrong');
+      });
     } catch (e) {
       ToastUtils.showError('Failed to send message: $e');
     } finally {
-      setState(() {
-        _isSending = false;
-      });
+      // setState(() => _isSending = false);
     }
   }
 
   @override
   void dispose() {
     _sendButtonAnimationController.dispose();
-    _chatService.dispose();
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
@@ -328,7 +306,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   onSubmitted: (_) {
-                    if (!_isTextEmpty && !_isSending) {
+                    if (!_isTextEmpty && !_isSending && !_aiTyping) {
                       _sendMessage();
                     }
                   },
@@ -403,7 +381,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Widget _buildChatBody(ThemeData theme) {
     final isDark = theme.brightness == Brightness.dark;
-
     return Column(
       children: [
         // Chat messages
@@ -420,21 +397,33 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             ),
             child: _messages.isEmpty
                 ? _buildEmptyState(theme)
-                : ListView.builder(
+                : CustomScrollView(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final message = _messages[index];
-                      return _buildMessageBubble(message);
-                    },
+                    slivers: [
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final message = _messages[index];
+                              return _buildMessageBubble(message);
+                            },
+                          childCount: _messages.length
+                        ),
+                      ),
+                      if(_aiTyping) SliverToBoxAdapter(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            // color: Colors.black,
+                            padding: EdgeInsets.only(left: 12),
+                            height: 40,
+                              alignment: Alignment.centerLeft,
+                              child: TypingIndicator()),
+                        ),
+                      )
+                    ],
                   ),
           ),
         ),
-        // Message input
         _buildMessageInput(theme),
       ],
     );
@@ -460,10 +449,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMessageBubble(Message message) {
+  Widget _buildMessageBubble(ChatMessage message) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final isUser = message.isUser;
+    final isUser = message.messageType == MessageType.user;
 
     return Container(
       margin: EdgeInsets.only(
@@ -519,7 +508,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  message.content,
+                  message.message,
                   style: TextStyle(
                     fontSize: 16,
                     color: isUser ? Colors.white : theme.colorScheme.onSurface,
@@ -530,8 +519,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                    Text(timeFormatter.format(message.timeSent.toLocal()),
                       style: TextStyle(
                         fontSize: 12,
                         color: isUser
@@ -544,26 +532,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     if (isUser) ...[
                       const SizedBox(width: 4),
                       Icon(
-                        message.isComplete ? Icons.done_all : Icons.access_time,
+                        Icons.done_all,
+                        // message.isComplete ? Icons.done_all : Icons.access_time,
                         size: 14,
                         color: const Color(0xB3FFFFFF),
                       ),
                     ],
-                    if (!message.isComplete) ...[
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 12,
-                        width: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            isUser
-                                ? const Color(0xB3FFFFFF)
-                                : theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
+                    // if (!message.isComplete) ...[
+                    //   const SizedBox(width: 8),
+                    //   SizedBox(
+                    //     height: 12,
+                    //     width: 12,
+                    //     child: CircularProgressIndicator(
+                    //       strokeWidth: 1.5,
+                    //       valueColor: AlwaysStoppedAnimation<Color>(
+                    //         isUser
+                    //             ? const Color(0xB3FFFFFF)
+                    //             : theme.colorScheme.primary,
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ],
                   ],
                 ),
               ],
@@ -571,6 +560,113 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Typing indicator (Ai generated, rework if need be)
+class TypingIndicator extends StatefulWidget {
+  const TypingIndicator({super.key});
+
+  @override
+  State<TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<TypingIndicator> with TickerProviderStateMixin {
+  // Animation controllers for each of the three dots
+  late final AnimationController _controller1;
+  late final AnimationController _controller2;
+  late final AnimationController _controller3;
+
+  // Animations to drive the bouncing effect
+  late final Animation<double> _animation1;
+  late final Animation<double> _animation2;
+  late final Animation<double> _animation3;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize all three animation controllers
+    // The .repeat(reverse: true) method handles both the looping and the up/down bounce.
+    _controller1 = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    _controller2 = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    _controller3 = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+
+    // Create a Tween to define the animation range (e.g., from 0 to -10 pixels)
+    final Tween<double> tween = Tween<double>(begin: 0.0, end: -10.0);
+
+    // Create the animations and apply a staggered delay using Intervals
+    // An Interval creates a sub-section of the overall animation.
+    // This makes the dots "take turns" bouncing.
+    _animation1 = tween.animate(CurvedAnimation(parent: _controller1, curve: const Interval(0.0, 1.0, curve: Curves.easeOut)));
+    _animation2 = tween.animate(
+      CurvedAnimation(
+        parent: _controller2,
+        curve: const Interval(0.2, 1.0, curve: Curves.easeOut), // Start after a delay
+      ),
+    );
+    _animation3 = tween.animate(
+      CurvedAnimation(
+        parent: _controller3,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeOut), // Start after a longer delay
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    // Clean up all the controllers when the widget is removed
+    _controller1.dispose();
+    _controller2.dispose();
+    _controller3.dispose();
+    super.dispose();
+  }
+
+  // A helper method to build an individual animated dot
+  Widget _buildDot(Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, animation.value),
+          child: child,
+        );
+      },
+      child: Container(
+        width: 8.0,
+        height: 8.0,
+        decoration: const BoxDecoration(
+          color: Colors.grey,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _buildDot(_animation1),
+        const SizedBox(width: 4),
+        _buildDot(_animation2),
+        const SizedBox(width: 4),
+        _buildDot(_animation3),
+      ],
     );
   }
 }
