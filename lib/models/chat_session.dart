@@ -118,7 +118,7 @@ class ChatMessage {
       messageId: json["message_id"],
       parentMessage: json["parent_message"],
       latestChildMessage: json["latest_child_message"],
-      message: json["message"].split('\n\n').last,
+      message: json["message"],
       messageType: MessageType.fromJson(json["message_type"]),
       timeSent: DateTime.parse(json["time_sent"] ?? ""),
       chatSessionId: json["chat_session_id"],

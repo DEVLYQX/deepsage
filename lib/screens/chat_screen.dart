@@ -2,6 +2,7 @@ import 'package:deepsage/models/chat_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:logger/logger.dart';
 
 import '../services/chat_service.dart';
 import '../utils/toast_utils.dart';
@@ -24,8 +25,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   bool _isSending = false;
   bool _isTextEmpty = true;
   bool _aiTyping = false;
-
-  final timeFormatter = DateFormat.Hm();
+  bool isInit = true;
+  final lastMessageKey = GlobalKey();
 
   late AnimationController _sendButtonAnimationController;
   late Animation<double> _sendButtonScaleAnimation;
@@ -61,16 +62,44 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     });
   }
 
+  void _simulateStream(String text) async {
+    Logger().i('simulating stream $text');
+    String completeText = '';
+    final words = text.split(' ');
+    for(var word in words) {
+      completeText = '$completeText $word'.trim();
+      final oldMsg = _messages.last;
+      final newMsg = oldMsg.copyWith(message: completeText);
+      setState(() {
+        _messages[_messages.indexWhere((e) => e.messageId == oldMsg.messageId)] = newMsg;
+        // Logger().i('setting new message: $newMsg');
+      });
+      _scrollToBottom();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+  }
+
+
   Future<void> _initChat() async {
     try {
       setState(() => _isLoading = true);
       _chatService.chatMessagesStream.listen((msgs) {
+        // List<ChatMessage> messages = msgs;
         setState(() => _messages = msgs);
         _scrollToBottom();
+        // if(msgs.last.messageType == MessageType.assistant) {
+        //   setState(() => _messages = messages);
+        // }
+        // else {
+        //   setState(() => _messages = msgs);
+        //   _scrollToBottom();
+        // }
+        // _scrollToBottom();
       }, onError: (error) => ToastUtils.showError('Error: $error'));
       // Get chat history
       await _chatService.getChatHistory();
       setState(() => _isLoading = false);
+      scrollToLastMessage();
     } catch (e) {
       ToastUtils.showError('Failed to load chat: $e');
     } finally {
@@ -79,7 +108,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -88,6 +117,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         );
       }
     });
+  }
+
+  void scrollToLastMessage() async{
+    print('to last messae');
+    await Future.delayed(Duration(seconds: 1));
+    final context = lastMessageKey.currentContext;
+    print('context: ${context == null}');
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _sendMessage() async {
@@ -109,6 +152,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         onDone: () {
           _aiTyping = false;
           setState(() => _isSending = false);
+        },
+        setTyping: () {
+          if(!_aiTyping) return;
+          print('setting typing to false');
+          _aiTyping = false;
+          setState(() {});
         },
         onError: () {
           _aiTyping = false;
@@ -389,7 +438,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       SliverList(
                         delegate: SliverChildBuilderDelegate((context, index) {
                           final message = _messages[index];
-                          return _buildMessageBubble(message);
+                          return MessageBubble(message: message, key: index == _messages.length - 1 ? lastMessageKey : null,);
                         }, childCount: _messages.length),
                       ),
                       if (_aiTyping)
@@ -434,7 +483,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+}
+
+class MessageBubble extends StatelessWidget {
+  MessageBubble({super.key, required this.message});
+
+  final ChatMessage message;
+  final timeFormatter = DateFormat.Hm();
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isUser = message.messageType == MessageType.user;
@@ -484,12 +542,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                isUser ? Text(
                   message.message,
                   style: TextStyle(
                     fontSize: 16,
                     color: isUser ? Colors.white : theme.colorScheme.onSurface,
                     height: 1.4,
+                  ),
+                )
+                    :AnimatedOpacity(
+                  opacity: 1,
+                  duration: const Duration(milliseconds: 1000),
+                  child: Text(
+                    message.message,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isUser ? Colors.white : theme.colorScheme.onSurface,
+                      height: 1.4,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -541,6 +611,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 }
+
+
 
 // Typing indicator (Ai generated, rework if need be)
 class TypingIndicator extends StatefulWidget {

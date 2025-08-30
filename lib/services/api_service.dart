@@ -113,6 +113,7 @@ class ApiService {
 
         try {
           final data = jsonDecode(line) as T;
+          await Future.delayed(Duration(milliseconds: 100));
           yield data;
         } catch (e) {
           Logger().i('attempting to extract inline json');
@@ -121,6 +122,7 @@ class ApiService {
           for (final match in matches) {
             try {
               final obj = jsonDecode(match.group(0)!) as T;
+              await Future.delayed(Duration(milliseconds: 100));
               yield obj;
             } catch (e, s) {
               Logger().e(e, stackTrace: s);

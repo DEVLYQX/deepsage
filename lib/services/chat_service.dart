@@ -80,21 +80,26 @@ class ChatService {
           }
         },
         "search_doc_ids": [],
-        "prompt_override": {
-          "system_prompt": systemPrompt
-        },
+        "prompt_override": null,
         "llm_override": {
           "temperature": 0.5,
-          "model_provider": "staging_mastergpt_forex",
-          "model_version": "openai/forex_gpt-4.1-2025-04-14"
+          // "model_provider": "staging_mastergpt_forex",
+          "model_provider": "ImageLLM",
+          // "model_version": "openai/forex_gpt-4.1-2025-04-14"
+          "model_version": "o3"
         },
         "use_agentic_search": false
       });
 
+      String completeText = '';
+      ChatMessage? aiResponse;
       // listen to stream and check responses
       stream.listen((event) {
           Logger().i("Got SSE event(${event.runtimeType}): $event");
           if(event is Map<String, dynamic>) {
+            if(event case {'user_message_id': final int parentId, 'reserved_assistant_message_id': final int messageId}) {
+              aiResponse = ChatMessage(messageId: messageId, parentMessage: parentId ,message: completeText, messageType: MessageType.assistant, timeSent: DateTime.now().toUtc(), chatSessionId: chatId);
+            }
             if(event case {'answer_piece': final String answer} ) {
               setTyping?.call();
               if(answer.trim().isEmpty) {
@@ -102,14 +107,37 @@ class ChatService {
               } else if(answer.trim().contains('<status>') || answer.contains('</status>')) {
                 Logger().i('AI is thinking($answer). Skip');
               } else {
-                Logger().i('AI response ready: $answer');
+                setTyping?.call();
+                // add new stream of text to the old one
+                completeText = '$completeText$answer';
+                aiResponse = aiResponse!.copyWith(message: completeText);
+                // this will check the index of the response using the message id and then it will update the message text to a new one
+                final index = chatMessages.indexWhere((e) => e.messageId == aiResponse?.messageId);
+                // if message exists, update the existing message
+                if(index == -1) {
+                  chatMessages.add(aiResponse!);
+                  _chatMessagesController.add(chatMessages);
+                } else { // else add the new message
+                  Logger().i('adding chat message');
+                  chatMessages[index] = aiResponse!;
+                  _chatMessagesController.add(chatMessages);
+                }
+                Logger().i('AI response ready: $completeText');
+                // Logger().i('AI response ready: $answer');
               }
             } else if(event case {'message_id': final int messageID, "parent_message": final int parent, "message_type": final String msgType}) {
-              Logger().i('Adding ai response');
               // add ai response on here once the data pattern in else if is matched is matched
               final reply = ChatMessage.fromJson(event);
-              chatMessages.add(reply);
-              _chatMessagesController.add(List.unmodifiable(chatMessages));
+              final index = chatMessages.indexWhere((e) => e.messageId == reply.messageId);
+              if(index != -1) {
+                Logger().i('Updating ai response');
+                chatMessages[index] = reply;
+                _chatMessagesController.add(chatMessages);
+              } else {
+                Logger().i('Adding ai response');
+                chatMessages.add(reply);
+                _chatMessagesController.add(chatMessages);
+              }
             } else {
               Logger().i('NO answer piece');
             }
@@ -193,7 +221,7 @@ class ChatService {
           return dateA.compareTo(dateB);
         });
         chatMessages.addAll(messages);
-        _chatMessagesController.add(List.unmodifiable(chatMessages));
+        _chatMessagesController.add(chatMessages);
         Logger().i(chat.toString());
       }
     }
